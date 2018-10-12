@@ -1,13 +1,15 @@
 import os
 import time
 
-import torch
 import numpy as np
+import torch
 from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
 
 __all__ = [
-    'Hook', 'LoggingHook', 'TensorboardHook', 'CSVHook', 'EarlyStoppingHook', 'MaxEpochHook', 'MaxStepHook',
-    'LRScheduleHook', 'ReduceLROnPlateauHook', 'ExponentialDecayHook', 'WarmRestartHook'
+    'Hook', 'LoggingHook', 'TensorboardHook', 'CSVHook', 'EarlyStoppingHook',
+    'MaxEpochHook', 'MaxStepHook',
+    'LRScheduleHook', 'ReduceLROnPlateauHook', 'ExponentialDecayHook',
+    'WarmRestartHook'
 ]
 
 
@@ -116,7 +118,8 @@ class CSVHook(LoggingHook):
         """
 
     def __init__(self, log_path, metrics, log_train_loss=True,
-                 log_validation_loss=True, log_learning_rate=True, every_n_epochs=1):
+                 log_validation_loss=True, log_learning_rate=True,
+                 every_n_epochs=1):
         log_path = os.path.join(log_path, 'log.csv')
         super(CSVHook, self).__init__(log_path, metrics, log_train_loss,
                                       log_validation_loss, log_learning_rate)
@@ -224,12 +227,15 @@ class TensorboardHook(LoggingHook):
     """
 
     def __init__(self, log_path, metrics, log_train_loss=True,
-                 log_validation_loss=True, log_learning_rate=True, every_n_epochs=1,
+                 log_validation_loss=True, log_learning_rate=True,
+                 every_n_epochs=1,
                  img_every_n_epochs=10,
                  log_histogram=False):
         from tensorboardX import SummaryWriter
-        super(TensorboardHook, self).__init__(log_path, metrics, log_train_loss,
-                                              log_validation_loss, log_learning_rate)
+        super(TensorboardHook, self).__init__(log_path, metrics,
+                                              log_train_loss,
+                                              log_validation_loss,
+                                              log_learning_rate)
         self.writer = SummaryWriter(self.log_path)
         self.every_n_epochs = every_n_epochs
         self.log_histogram = log_histogram
@@ -238,9 +244,13 @@ class TensorboardHook(LoggingHook):
     def on_epoch_end(self, trainer):
         if trainer.epoch % self.every_n_epochs == 0:
             if self.log_train_loss:
-                self.writer.add_scalar("train/loss", self._train_loss / self._counter, trainer.epoch)
+                self.writer.add_scalar("train/loss",
+                                       self._train_loss / self._counter,
+                                       trainer.epoch)
             if self.log_learning_rate:
-                self.writer.add_scalar("train/learning_rate", trainer.optimizer.param_groups[0]['lr'], trainer.epoch)
+                self.writer.add_scalar("train/learning_rate",
+                                       trainer.optimizer.param_groups[0]['lr'],
+                                       trainer.epoch)
 
     def on_validation_end(self, trainer, val_loss):
         if trainer.epoch % self.every_n_epochs == 0:
@@ -248,7 +258,8 @@ class TensorboardHook(LoggingHook):
                 m = metric.aggregate()
 
                 if np.isscalar(m):
-                    self.writer.add_scalar("metrics/%s" % metric.name, float(m), trainer.epoch)
+                    self.writer.add_scalar("metrics/%s" % metric.name,
+                                           float(m), trainer.epoch)
                 elif m.ndim == 2:
                     if trainer.epoch % self.img_every_n_epochs == 0:
                         import matplotlib.pyplot as plt
@@ -259,8 +270,10 @@ class TensorboardHook(LoggingHook):
                         plt.colorbar(plt.pcolor(m))
                         fig.canvas.draw()
 
-                        np_image = np.fromstring(fig.canvas.tostring_rgb(), dtype='uint8')
-                        np_image = np_image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+                        np_image = np.fromstring(fig.canvas.tostring_rgb(),
+                                                 dtype='uint8')
+                        np_image = np_image.reshape(
+                            fig.canvas.get_width_height()[::-1] + (3,))
 
                         plt.close(fig)
 
@@ -268,11 +281,14 @@ class TensorboardHook(LoggingHook):
                                               np_image, trainer.epoch)
 
             if self.log_validation_loss:
-                self.writer.add_scalar("train/val_loss", float(val_loss), trainer.step)
+                self.writer.add_scalar("train/val_loss", float(val_loss),
+                                       trainer.step)
 
             if self.log_histogram:
                 for name, param in trainer._model.named_parameters():
-                    self.writer.add_histogram(name, param.detach().cpu().numpy(), trainer.epoch)
+                    self.writer.add_histogram(name,
+                                              param.detach().cpu().numpy(),
+                                              trainer.epoch)
 
     def on_train_ends(self, trainer):
         self.writer.close()
@@ -319,7 +335,8 @@ class EarlyStoppingHook(Hook):
 
 class WarmRestartHook(Hook):
 
-    def __init__(self, T0=10, Tmult=2, each_step=False, lr_min=1e-6, patience=1):
+    def __init__(self, T0=10, Tmult=2, each_step=False, lr_min=1e-6,
+                 patience=1):
         self.scheduler = None
         self.each_step = each_step
         self.T0 = T0
@@ -333,8 +350,9 @@ class WarmRestartHook(Hook):
         self.best_current = float('Inf')
 
     def on_train_begin(self, trainer):
-        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(trainer.optimizer,
-                                                                    self.Tmax, self.lr_min)
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            trainer.optimizer,
+            self.Tmax, self.lr_min)
         self.init_opt_state = trainer.optimizer.state_dict()
 
     def on_batch_begin(self, trainer, train_batch):
@@ -346,7 +364,7 @@ class WarmRestartHook(Hook):
             self.scheduler.step()
 
     def on_validation_end(self, trainer, val_loss):
-        if self.best_current < val_loss:
+        if self.best_current > val_loss:
             self.best_current = val_loss
 
         if self.scheduler.last_epoch >= self.Tmax:
@@ -457,12 +475,20 @@ class ReduceLROnPlateauHook(Hook):
         stop_after_min (bool): if enabled stops after minimal learning rate is reached (default: False).
       """
 
-    def __init__(self, optimizer, patience=25, factor=0.2, min_lr=1e-6, window_length=1,
-                 stop_after_min=False):
-        self.scheduler = ReduceLROnPlateau(optimizer, patience=patience, factor=factor, min_lr=min_lr)
+    def __init__(self, optimizer, patience=25, factor=0.2, min_lr=1e-6,
+                 window_length=1,
+                 stop_after_min=False, warm_restart=False, episode_patience=1):
+        self.scheduler = ReduceLROnPlateau(optimizer, patience=patience,
+                                           factor=factor, min_lr=min_lr)
         self.window_length = window_length
         self.stop_after_min = stop_after_min
+        self.warm_restart = warm_restart
+        self.episode_patience = episode_patience
+        self.num_bad_episodes = 0
         self.window = []
+
+        self.best_previous = float('Inf')
+        self.best_current = float('Inf')
 
     @property
     def state_dict(self):
@@ -478,6 +504,9 @@ class ReduceLROnPlateauHook(Hook):
         self.scheduler.cooldown_counter = state_dict['cooldown_counter']
         self.scheduler.num_bad_epochs = state_dict['num_bad_epochs']
 
+    def on_train_begin(self, trainer):
+        self.init_opt_state = trainer.optimizer.state_dict()
+
     def on_validation_end(self, trainer, val_loss):
         self.window.append(val_loss)
         if len(self.window) > self.window_length:
@@ -486,11 +515,28 @@ class ReduceLROnPlateauHook(Hook):
 
         self.scheduler.step(accum_loss)
 
-        if self.stop_after_min:
-            for i, param_group in enumerate(self.scheduler.optimizer.param_groups):
+        if self.best_current > val_loss:
+            self.best_current = val_loss
+
+        if self.stop_after_min or self.warm_restart:
+            for i, param_group in enumerate(
+                    self.scheduler.optimizer.param_groups):
                 old_lr = float(param_group['lr'])
                 if old_lr <= self.scheduler.min_lrs[i]:
-                    trainer._stop = True
+                    if self.warm_restart:
+                        trainer.optimizer.load_state_dict(self.init_opt_state)
+
+                        if self.best_current > self.best_previous:
+                            self.num_bad_episodes += 1
+                        else:
+                            self.num_bad_episodes = 0
+                            self.best_previous = self.best_current
+
+                        if self.num_bad_episodes > self.episode_patience:
+                            trainer._stop = True
+
+                    else:
+                        trainer._stop = True
 
 
 class ExponentialDecayHook(Hook):
@@ -524,4 +570,5 @@ class UpdatePrioritiesHook(Hook):
     def on_batch_end(self, trainer, train_batch, result, loss):
         idx = train_batch['_idx']
         self.prioritized_sampler.update_weights(idx.data.cpu().squeeze(),
-                                                self.update_fn(train_batch, result).data.cpu().squeeze())
+                                                self.update_fn(train_batch,
+                                                               result).data.cpu().squeeze())
