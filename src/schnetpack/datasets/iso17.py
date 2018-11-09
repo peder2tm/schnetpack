@@ -10,6 +10,10 @@ from schnetpack.data import AtomsData
 from schnetpack.environment import SimpleEnvironmentProvider
 
 
+__all__ = ['ISO17']
+
+
+
 class ISO17(AtomsData):
     """
     ISO17 benchmark data set for molecular dynamics of C7O2H10 isomers containing molecular forces.

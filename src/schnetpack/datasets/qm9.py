@@ -5,15 +5,15 @@ import shutil
 import tarfile
 import tempfile
 from urllib import request as request
-from urllib.error import HTTPError, URLError
 
 import numpy as np
-from ase.db import connect
 from ase.io.extxyz import read_xyz
 from ase.units import Debye, Bohr, Hartree, eV
 
 from schnetpack.data import AtomsData
 from schnetpack.environment import SimpleEnvironmentProvider
+
+__all__ = ['QM9']
 
 
 class QM9(AtomsData):
@@ -73,50 +73,38 @@ class QM9(AtomsData):
             )
     )
 
-    def __init__(self, path, download=True, subset=None, properties=[],
+    def __init__(self, dbpath, download=True, subset=None, properties=[],
                  collect_triples=False, remove_uncharacterized=False):
-        self.path = path
-        self.dbpath = os.path.join(self.path, 'qm9.db')
-        self.atomref_path = os.path.join(self.path, 'atomref.npz')
-        self.evilmols_path = os.path.join(self.path, 'evilmols.npy')
+        self.dbpath = dbpath
         self.required_properties = properties
         environment_provider = SimpleEnvironmentProvider()
 
-        if download:
-            self._download()
+        if not os.path.exists(dbpath) and download:
+            self._download(remove_uncharacterized)
 
-        if remove_uncharacterized:
-            if subset is None:
-                with connect(self.dbpath) as con:
-                    subset = np.arange(con.count())
-            else:
-                subset = np.array(subset)
-            evilmols = np.load(self.evilmols_path)
-
-            # attention:  1-indexing vs 0-indexing
-            subset = np.setdiff1d(subset, evilmols - 1)
-
-        super().__init__(self.dbpath, subset, self.required_properties, environment_provider,
+        super().__init__(self.dbpath, subset, self.required_properties,
+                         environment_provider,
                          collect_triples)
 
     def create_subset(self, idx):
         idx = np.array(idx)
         subidx = idx if self.subset is None else np.array(self.subset)[idx]
 
-        return QM9(self.path, False, subidx, self.required_properties, self.collect_triples, False)
+        return QM9(self.dbpath, False, subidx, self.required_properties,
+                   self.collect_triples, False)
 
-    def _download(self):
-        works = True
-        if not os.path.exists(self.path):
-            os.makedirs(self.path)
+    def _download(self, remove_uncharacterized):
+        if remove_uncharacterized:
+            evilmols = self._load_evilmols()
+        else:
+            evilmols = None
 
-        if not os.path.exists(self.atomref_path):
-            works = works and self._load_atomrefs()
-        if not os.path.exists(self.dbpath):
-            works = works and self._load_data()
-        if not os.path.exists(self.evilmols_path):
-            works = works and self._load_evilmols()
-        return works
+        self._load_data(evilmols)
+
+        atref, labels = self._load_atomrefs()
+        self.set_metadata({
+            'atomrefs': atref.tolist(), 'atref_labels': labels
+        })
 
     def get_reference(self, property):
         """
@@ -132,7 +120,7 @@ class QM9(AtomsData):
             atomref = None
         else:
             col = QM9.reference[property]
-            atomref = np.load(self.atomref_path)['atom_ref'][:, col:col + 1]
+            atomref = np.array(self.get_metadata('atomrefs'))[:, col:col + 1]
         return atomref
 
     def _load_atomrefs(self):
@@ -141,15 +129,8 @@ class QM9(AtomsData):
         tmpdir = tempfile.mkdtemp('gdb9')
         tmp_path = os.path.join(tmpdir, 'atomrefs.txt')
 
-        try:
-            request.urlretrieve(at_url, tmp_path)
-            logging.info("Done.")
-        except HTTPError as e:
-            logging.error("HTTP Error:", e.code, at_url)
-            return False
-        except URLError as e:
-            logging.error("URL Error:", e.reason, at_url)
-            return False
+        request.urlretrieve(at_url, tmp_path)
+        logging.info("Done.")
 
         atref = np.zeros((100, 6))
         labels = ['zpve', 'U0', 'U', 'H', 'G', 'Cv']
@@ -162,48 +143,33 @@ class QM9(AtomsData):
                 atref[z, 3] = float(l.split()[4]) * Hartree / eV
                 atref[z, 4] = float(l.split()[5]) * Hartree / eV
                 atref[z, 5] = float(l.split()[6])
-        np.savez(self.atomref_path, atom_ref=atref, labels=labels)
-        return True
+        return atref, labels
 
     def _load_evilmols(self):
-        logging.info('Downloading list of evil molecules...')
+        logging.info('Downloading list of uncharacterized molecules...')
         at_url = 'https://ndownloader.figshare.com/files/3195404'
         tmpdir = tempfile.mkdtemp('gdb9')
         tmp_path = os.path.join(tmpdir, 'uncharacterized.txt')
 
-        try:
-            request.urlretrieve(at_url, tmp_path)
-            logging.info("Done.")
-        except HTTPError as e:
-            logging.error("HTTP Error:", e.code, at_url)
-            return False
-        except URLError as e:
-            logging.error("URL Error:", e.reason, at_url)
-            return False
+        request.urlretrieve(at_url, tmp_path)
+        logging.info("Done.")
 
         evilmols = []
         with open(tmp_path) as f:
             lines = f.readlines()
             for line in lines[9:-1]:
                 evilmols.append(int(line.split()[0]))
-        np.save(self.evilmols_path, np.array(evilmols))
+        return np.array(evilmols)
 
-    def _load_data(self):
+    def _load_data(self, evilmols=None):
         logging.info('Downloading GDB-9 data...')
         tmpdir = tempfile.mkdtemp('gdb9')
         tar_path = os.path.join(tmpdir, 'gdb9.tar.gz')
         raw_path = os.path.join(tmpdir, 'gdb9_xyz')
         url = 'https://ndownloader.figshare.com/files/3195389'
 
-        try:
-            request.urlretrieve(url, tar_path)
-            logging.info("Done.")
-        except HTTPError as e:
-            logging.error("HTTP Error:", e.code, url)
-            return False
-        except URLError as e:
-            logging.error("URL Error:", e.reason, url)
-            return False
+        request.urlretrieve(url, tar_path)
+        logging.info("Done.")
 
         logging.info("Extracting files...")
         tar = tarfile.open(tar_path)
@@ -212,12 +178,18 @@ class QM9(AtomsData):
         logging.info("Done.")
 
         logging.info('Parse xyz files...')
-        ordered_files = sorted(os.listdir(raw_path), key=lambda x: (int(re.sub('\D', '', x)), x))
+        ordered_files = sorted(os.listdir(raw_path),
+                               key=lambda x: (int(re.sub('\D', '', x)), x))
 
         all_atoms = []
         all_properties = []
-        for i, xyzfile in enumerate(ordered_files):
-            xyzfile = os.path.join(raw_path, xyzfile)
+
+        irange = np.arange(len(ordered_files), dtype=np.int)
+        if evilmols is not None:
+            irange = np.setdiff1d(irange, evilmols - 1)
+
+        for i in irange:
+            xyzfile = os.path.join(raw_path, ordered_files[i])
 
             if (i + 1) % 10000 == 0:
                 logging.info('Parsed: {:6d} / 133885'.format(i + 1))

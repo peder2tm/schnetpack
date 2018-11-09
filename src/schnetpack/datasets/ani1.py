@@ -16,6 +16,9 @@ from schnetpack.data import AtomsData
 from schnetpack.environment import SimpleEnvironmentProvider
 
 
+__all__ = ['ANI1']
+
+
 class ANI1(AtomsData):
     """ ANI1 dataset.
 

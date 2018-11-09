@@ -41,7 +41,6 @@ class SchNetInteraction(nn.Module):
                                                   normalize_filter=normalize_filter)
         self.dense = schnetpack.nn.base.Dense(n_atom_basis, n_atom_basis)
 
-
     def forward(self, x, r_ij, neighbors, neighbor_mask, f_ij=None):
         """
         Args:
@@ -57,7 +56,6 @@ class SchNetInteraction(nn.Module):
         v = self.cfconv(x, r_ij, neighbors, neighbor_mask, f_ij)
         v = self.dense(v)
         return v
-
 
 
 class SchNet(nn.Module):
