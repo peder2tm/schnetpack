@@ -12,14 +12,14 @@ from ase import Atoms
 from ase.db import connect
 from ase.units import Hartree
 
-from schnetpack.data import AtomsData
+import schnetpack.data as data
 from schnetpack.environment import SimpleEnvironmentProvider
 
 
 __all__ = ['ANI1']
 
 
-class ANI1(AtomsData):
+class ANI1(data.AtomsData):
     """ ANI1 dataset.
 
         This class adds convenience functions to download ANI1 from figshare and load the data into pytorch.

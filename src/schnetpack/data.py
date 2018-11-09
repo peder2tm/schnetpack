@@ -18,10 +18,13 @@ from base64 import b64encode, b64decode
 import numpy as np
 import torch
 from ase.db import connect
+
 from torch.autograd import Variable
 from torch.utils.data import Dataset, DataLoader
 
-from .environment import SimpleEnvironmentProvider, collect_atom_triples
+from .environment import SimpleEnvironmentProvider, \
+    ASEEnvironmentProvider,\
+    collect_atom_triples
 
 
 class AtomsDataError(Exception):
