@@ -547,8 +547,6 @@ class AtomsLoader(DataLoader):
                     self._update_statistic(pa, ar, property_name,
                                            row, statistic)
                 count += 1
-                if count > 2:
-                    break
             stats = list(zip(*[s.get_statistics() for s in statistics]))
             mean, stddev = stats
 

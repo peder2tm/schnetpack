@@ -1,9 +1,9 @@
 from sacred import Experiment
 
-from schnetpack.config import data_ingredient
+import schnetpack.experiment as exp
 
 ex = Experiment("schnetpack", ingredients=[
-    data_ingredient
+    exp.data_ingredient
 ])
 
 
@@ -18,8 +18,10 @@ def download():
 
 
 @ex.command
-def train():
-    print("Train")
+def train(_log):
+    _log.info("Load data")
+    #exp.load()
+
 
 
 @ex.command

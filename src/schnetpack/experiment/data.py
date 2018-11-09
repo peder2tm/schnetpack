@@ -1,10 +1,9 @@
 import numpy as np
 from sacred import Ingredient
 
-import schnetpack.environment as env
 import schnetpack.data as dat
-
-from .datasets import dataset_ingredient, load_data
+import schnetpack.environment as env
+from .datasets import dataset_ingredient, load_dataset
 
 data_ingredient = Ingredient('data', ingredients=[dataset_ingredient])
 
@@ -43,12 +42,9 @@ def create_split(_seed, num_train, num_val, data):
 
 @data_ingredient.capture
 def load(collect_triples):
-    required_properties = ['energy_U0', 'energy_U']
-
-    data = load_data(
+    data = load_dataset(
         environment_provider=get_environment_provider(),
-        collect_triples=collect_triples,
-        required_properties=required_properties
+        collect_triples=collect_triples
     )
 
     return data
@@ -61,18 +57,18 @@ def load_splits():
     return train, val, test
 
 
-@data_ingredient.capture
-def stats(properties, use_atomref, data=None, per_atom=True):
+@data_ingredient.command
+def stats(dataset, use_atomref, data=None, per_atom=True):
+    props = list(dataset['property_map'].values())
     if data is None:
         data = load()
 
     if use_atomref:
-        atomrefs = [data.get_atomref(p) for p in prop]
+        atomrefs = [data.get_atomref(p) for p in props]
     else:
         atomrefs = None
 
     data_loader = dat.AtomsLoader(data)
-    mean, stddev = data_loader.get_statistics(properties, per_atom, atomrefs)
+    mean, stddev = data_loader.get_statistics(props, per_atom,
+                                              atomrefs)
     return mean, stddev
-
-
