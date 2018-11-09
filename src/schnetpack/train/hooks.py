@@ -281,6 +281,35 @@ class TensorboardHook(LoggingHook):
         self.writer.close()
 
 
+class SacredHook(LoggingHook):
+
+    def __init__(self, experiment, metrics, log_train_loss=True, log_validation_loss=True, log_learning_rate=True,
+                 every_n_epochs=1):
+
+        super(SacredHook, self).__init__(None, metrics, log_train_loss, log_validation_loss, log_learning_rate)
+
+        self.experiment = experiment
+
+        self.every_n_epochs = every_n_epochs
+
+    def on_epoch_end(self, trainer):
+        if trainer.epoch % self.every_n_epochs == 0:
+            if self.log_train_loss:
+                self.experiment.log_scalar("train/loss", self._train_loss / self._counter, trainer.epoch)
+            if self.log_learning_rate:
+                self.experiment.log_scalar("train/learning_rate", trainer.optimizer.param_groups[0]['lr'],
+                                           trainer.epoch)
+
+    def on_validation_end(self, trainer, val_loss):
+        if trainer.epoch % self.every_n_epochs == 0:
+            for metric in self.metrics:
+                m = metric.aggregate()
+                self.experiment.log_scalar("metrics/%s" % metric.name, float(m), trainer.epoch)
+
+            if self.log_validation_loss:
+                self.experiment.log_scalar("train/val_loss", float(val_loss), trainer.step)
+
+
 class EarlyStoppingHook(Hook):
     """ Hook for early stopping.
 
