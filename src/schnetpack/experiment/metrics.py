@@ -1,9 +1,29 @@
 from sacred import Ingredient
 
 from schnetpack.train.hooks import SacredHook, TensorboardHook, CSVHook
-from schnetpack.metrics import MeanAbsoluteError, RootMeanSquaredError
+import schnetpack.metrics
+
+from schnetpack.datasets import QM9, MD17, ANI1, MaterialsProject
 
 metric_ingredient = Ingredient('metrics')
+
+
+class Metrics:
+    mae = 'mae'
+    rmse = 'rmse'
+    lmae = 'length_mae'
+    lrmse = 'length_rmse'
+    amae = 'angle_mae'
+    armse = 'angle_rmse'
+
+    measures = {
+        mae: schnetpack.metrics.MeanAbsoluteError,
+        rmse: schnetpack.metrics.RootMeanSquaredError,
+        lmae: schnetpack.metrics.LengthMAE,
+        lrmse: schnetpack.metrics.LengthRMSE,
+        amae: schnetpack.metrics.AngleMAE,
+        armse: schnetpack.metrics.AngleRMSE
+    }
 
 
 class LoggerError(Exception):
@@ -16,9 +36,7 @@ class MetricError(Exception):
 
 @metric_ingredient.config
 def cfg():
-    metrics = {
-        'energy': ['MAE', 'RMSE']
-    }
+    metrics = {}
 
     logger = 'sacred'
     log_train_loss = True
@@ -26,29 +44,30 @@ def cfg():
     log_learning_rate = True
     every_n_epochs = 1
 
-#
-# @metric_ingredient.named_config
-# def md17():
-#     metrics = {
-#         'energy': ['MAE', 'RMSE'],
-#         ''
-#     }
+
+@metric_ingredient.named_config
+def md17():
+    metrics = {
+        MD17.energy: [Metrics.mae, Metrics.rmse],
+        MD17.forces: [Metrics.mae, Metrics.rmse, Metrics.lmae, Metrics.lrmse, Metrics.amae, Metrics.armse]
+    }
 
 
 @metric_ingredient.capture
 def get_metrics(metrics, logger, log_train_loss, log_validation_loss, log_learning_rate, every_n_epochs,
-                experiment=None, log_path=None):
+                experiment=None, log_path=None, property_map={}):
     to_monitor = []
 
     for property in metrics.keys():
+        if property not in property_map.keys():
+            raise MetricError('Unrecognized propery {:s}'.format(property))
+
+        db_property = property_map[property]
+
         for metric in metrics[property]:
-            if metric == 'MAE':
+            if metric in Metrics.measures:
                 to_monitor.append(
-                    MeanAbsoluteError(property, property)
-                )
-            elif metric == 'RMSE':
-                to_monitor.append(
-                    RootMeanSquaredError(property, property)
+                    Metrics.measures[metric](db_property, property)
                 )
             else:
                 raise MetricError('Unrecognized metric {:s}'.format(metric))
