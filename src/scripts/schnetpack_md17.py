@@ -156,8 +156,8 @@ def train(args, model, train_loader, val_loader, device):
     hooks.append(schedule)
 
     # index into model output: [energy, forces]
-    metrics = [spk.metrics.MeanAbsoluteError(MD17.energies, "y"),
-               spk.metrics.RootMeanSquaredError(MD17.energies, "y"),
+    metrics = [spk.metrics.MeanAbsoluteError(MD17.energy, "y"),
+               spk.metrics.RootMeanSquaredError(MD17.energy, "y"),
                spk.metrics.MeanAbsoluteError(MD17.forces, "dydx"),
                spk.metrics.RootMeanSquaredError(MD17.forces, "dydx")]
     if args.logger == 'csv':
@@ -171,7 +171,7 @@ def train(args, model, train_loader, val_loader, device):
 
     # setup loss function
     def loss(batch, result):
-        ediff = batch[MD17.energies] - result["y"]
+        ediff = batch[MD17.energy] - result["y"]
         ediff = ediff ** 2
 
         fdiff = batch[MD17.forces] - result["dydx"]
@@ -192,8 +192,8 @@ def evaluate(args, model, train_loader, val_loader, test_loader, device):
               'Force Length RMSE', 'Force Angle MAE', 'Angle RMSE']
 
     metrics = [
-        spk.metrics.MeanAbsoluteError(MD17.energies, "y"),
-        spk.metrics.RootMeanSquaredError(MD17.energies, "y"),
+        spk.metrics.MeanAbsoluteError(MD17.energy, "y"),
+        spk.metrics.RootMeanSquaredError(MD17.energy, "y"),
         spk.metrics.MeanAbsoluteError(MD17.forces, "dydx"),
         spk.metrics.RootMeanSquaredError(MD17.forces, "dydx"),
         spk.metrics.LengthMAE(MD17.forces, "dydx"),
@@ -327,7 +327,7 @@ if __name__ == '__main__':
 
     if args.mode == 'train':
         logging.info('calculate statistics...')
-        mean, stddev = train_loader.get_statistics(MD17.energies, True)
+        mean, stddev = train_loader.get_statistics(MD17.energy, True)
     else:
         mean, stddev = None, None
 

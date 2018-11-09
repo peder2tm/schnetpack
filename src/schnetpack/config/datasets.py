@@ -12,6 +12,7 @@ dataset_ingredient = Ingredient('dataset')
 def cfg():
     name = None  # name of the dataset
     path = None  # path to ASE db (destination)
+    property_map = {}
 
 
 @dataset_ingredient.named_config
@@ -51,10 +52,11 @@ def load_data(path, environment_provider, collect_triples,
 
 @dataset_ingredient.capture
 def download_qm9(name, path, remove_uncharacterized):
-    dset.QM9(path, download=True,
+    dset.QM9(path, download=True, properties=dset.QM9.properties,
              remove_uncharacterized=remove_uncharacterized)
 
 
 @dataset_ingredient.capture
 def download_md17(path, molecule):
-    dset.MD17(path, molecule, download=True)
+    dset.MD17(path, molecule, download=True,
+              properties=dset.MD17.required_properties)

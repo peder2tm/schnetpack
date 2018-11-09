@@ -106,23 +106,6 @@ class QM9(AtomsData):
             'atomrefs': atref.tolist(), 'atref_labels': labels
         })
 
-    def get_reference(self, property):
-        """
-        Returns atomref for property.
-
-        Args:
-            property: property in the qm9 dataset
-
-        Returns:
-            list: list with atomrefs
-        """
-        if property not in QM9.reference:
-            atomref = None
-        else:
-            col = QM9.reference[property]
-            atomref = np.array(self.get_metadata('atomrefs'))[:, col:col + 1]
-        return atomref
-
     def _load_atomrefs(self):
         logging.info('Downloading GDB-9 atom references...')
         at_url = 'https://ndownloader.figshare.com/files/3195395'
@@ -133,7 +116,7 @@ class QM9(AtomsData):
         logging.info("Done.")
 
         atref = np.zeros((100, 6))
-        labels = ['zpve', 'U0', 'U', 'H', 'G', 'Cv']
+        labels = [QM9.zpve, QM9.U0, QM9.U, QM9.H, QM9.G, QM9.Cv]
         with open(tmp_path) as f:
             lines = f.readlines()
             for z, l in zip([1, 6, 7, 8, 9], lines[5:10]):
