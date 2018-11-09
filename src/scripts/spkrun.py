@@ -1,8 +1,10 @@
 from sacred import Experiment
-from schnetpack.datasets import dataset_ingredient
 
+from schnetpack.config import data_ingredient
 
-ex = Experiment("schnetpack", ingredients=[dataset_ingredient])
+ex = Experiment("schnetpack", ingredients=[
+    data_ingredient
+])
 
 
 @ex.config
