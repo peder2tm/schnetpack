@@ -42,8 +42,9 @@ class MD17(AtomsData):
     See: http://quantum-machine.org/datasets/
     """
 
-    energies = 'energy'
+    energy = 'energy'
     forces = 'forces'
+    properties = [energy, forces]
 
     datasets_dict = dict(aspirin='aspirin_dft.npz',
                          aspirin_ccsd='aspirin_ccsd.zip',
@@ -70,7 +71,7 @@ class MD17(AtomsData):
         environment_provider = SimpleEnvironmentProvider()
 
         if properties is None:
-            properties = ["energy", "forces"]
+            properties = MD17.properties
 
         super(MD17, self).__init__(dbpath, subset, properties,
                                    environment_provider,
