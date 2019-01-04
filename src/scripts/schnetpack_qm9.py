@@ -44,7 +44,7 @@ def get_parser():
                               help='Destination for models and logs')
     train_parser.add_argument('--property', type=str,
                               help='QM9 property to be predicted (default: %(default)s)',
-                              default="energy_U0", choices=QM9.properties)
+                              default="energy_U0", choices=QM9.available_properties)
 
     train_parser.add_argument('--remove_uncharacterized',
                               help='Remove uncharacterized molecules from QM9',
@@ -112,6 +112,8 @@ def get_parser():
                                help='Cutoff radius of local environment (default: %(default)s)')
     schnet_parser.add_argument('--num_gaussians', type=int, default=25,
                                help='Number of Gaussians to expand distances (default: %(default)s)')
+    schnet_parser.add_argument('--enable_edge_updates', action='store_true',
+                               help='Enable edge update network to make distance representation trainable')
 
     #######  wACSF  ########
     wacsf_parser = argparse.ArgumentParser(add_help=False,
@@ -278,7 +280,8 @@ def get_model(args, atomref=None, mean=None, stddev=None, train_loader=None,
                                                    args.features,
                                                    args.interactions,
                                                    args.cutoff,
-                                                   args.num_gaussians)
+                                                   args.num_gaussians,
+                                                   trainable_edges=args.enable_edge_updates)
 
         if args.property == QM9.mu:
             atomwise_output = spk.atomistic.DipoleMoment(args.features,

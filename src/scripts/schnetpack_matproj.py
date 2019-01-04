@@ -88,6 +88,8 @@ def get_parser():
                                help='Cutoff radius of local environment (default: %(default)s)')
     schnet_parser.add_argument('--num_gaussians', type=int, default=25,
                                help='Number of Gaussians to expand distances (default: %(default)s)')
+    schnet_parser.add_argument('--enable_edge_updates', action='store_true',
+                               help='Enable edge update network to make distance representation trainable')
 
     ## setup subparser structure
     cmd_subparsers = main_parser.add_subparsers(dest='mode', help='Command-specific arguments')
@@ -196,7 +198,8 @@ def evaluate_dataset(metrics, model, loader, device):
 def get_model(args, atomref=None, mean=None, stddev=None, train_loader=None, parallelize=False):
     if args.model == 'schnet':
         representation = spk.representation.SchNet(args.features, args.features, args.interactions,
-                                                   args.cutoff, args.num_gaussians, normalize_filter=True)
+                                                   args.cutoff, args.num_gaussians, normalize_filter=True,
+                                                   trainable_edges=args.enable_edge_updates)
         atomwise_output = spk.atomistic.Atomwise(args.features, aggregation_mode=args.aggregation_mode,
                                                  mean=mean, stddev=stddev,
                                                  atomref=atomref, train_embeddings=True)

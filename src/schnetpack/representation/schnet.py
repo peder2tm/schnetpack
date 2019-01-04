@@ -1,4 +1,5 @@
 import math
+import itertools
 
 import torch
 import torch.nn as nn
@@ -63,6 +64,55 @@ class SchNetInteraction(nn.Module):
         v = self.dense(v)
         return v
 
+class SchNetEdgeUpdate(nn.Module):
+    """
+    SchNet edge update network for updating the representation of interactions.
+
+    Args:
+        n_atom_basis (int): number of features used to describe atomic environments
+        n_spatial_basis (int): number of features for distance representation
+    """
+
+    def __init__(self, n_atom_basis, n_spatial_basis, hidden_size=None):
+        super(SchNetEdgeUpdate, self).__init__()
+
+        if not hidden_size:
+            h_size = 2*n_spatial_basis
+        else:
+            h_size = hidden_size
+
+        self.edge_network = nn.Sequential(
+            schnetpack.nn.base.Dense(2*n_atom_basis+n_spatial_basis, h_size,
+                                     activation=schnetpack.nn.activations.shifted_softplus),
+            schnetpack.nn.base.Dense(h_size, n_spatial_basis)
+        )
+
+    def forward(self, x, neighbors, f_ij):
+
+        # Expected dimensions:
+        # x (bs x n_at x n_atom_basis)
+        # neighbors (bs x n_at x n_neigh)
+        # f_ij  (bs x n_at x n_neigh x n_spatial_basis)
+
+        # Construct auxiliary index vector
+        n_batch = x.size()[0]
+        idx_m = torch.arange(n_batch, device=x.device, dtype=torch.long)[:,
+                None, None]
+        # Gather representations of all neighors
+        x_neighbors = x[idx_m, neighbors, :]
+
+        # Expand atom representation
+        n_neighbors = neighbors.size()[2]
+        x_expand = x[:,:,None,:].expand(-1, -1, n_neighbors, -1)
+
+        # Concatenate edge representation, sending atom, and receiving atom
+        edge_network_input = torch.cat((f_ij, x_neighbors, x_expand), 3)
+
+        # Compute new edge representation
+        f_ij_new = self.edge_network(edge_network_input)
+
+        return f_ij_new
+
 
 class SchNet(nn.Module):
     """
@@ -102,11 +152,14 @@ class SchNet(nn.Module):
                  normalize_filter=False, coupled_interactions=False,
                  return_intermediate=False, max_z=100,
                  cutoff_network=HardCutoff, trainable_gaussians=False,
-                 distance_expansion=None, charged_systems=False):
+                 distance_expansion=None, charged_systems=False,
+                 trainable_edges=False):
         super(SchNet, self).__init__()
 
         # atom type embeddings
-        self.embedding = nn.Embedding(max_z, n_atom_basis, padding_idx=0)
+        scale = 1. / math.sqrt(n_atom_basis)
+        embedding_init = torch.randn(max_z, n_atom_basis)*scale
+        self.embedding = nn.Embedding(max_z, n_atom_basis, padding_idx=0, _weight=embedding_init)
 
         # spatial features
         self.distances = schnetpack.nn.neighbors.AtomDistances()
@@ -145,6 +198,19 @@ class SchNet(nn.Module):
                                   normalize_filter=normalize_filter)
                 for _ in range(n_interactions)
             ])
+        # edge update network
+        if trainable_edges:
+            if coupled_interactions:
+                self.edge_updates = nn.ModuleList([
+                    SchNetEdgeUpdate(n_atom_basis, n_gaussians)
+                ] * n_interactions)
+            else:
+                self.edge_updates = nn.ModuleList([
+                    SchNetEdgeUpdate(n_atom_basis, n_gaussians)
+                    for _ in range(n_interactions)])
+        else:
+            self.edge_updates = []
+
 
     def forward(self, inputs):
         """
@@ -181,7 +247,9 @@ class SchNet(nn.Module):
         if self.return_intermediate:
             xs = [x]
 
-        for interaction in self.interactions:
+        for edge_update, interaction in itertools.zip_longest(self.edge_updates, self.interactions):
+            if edge_update:
+                f_ij = edge_update(x, neighbors, f_ij)
             v = interaction(x, r_ij, neighbors, neighbor_mask, f_ij=f_ij)
             x = x + v
 
